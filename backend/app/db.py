@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS releases (
   current_env_id INTEGER,
   canary_ratio INTEGER NOT NULL DEFAULT 10,
   note TEXT NOT NULL DEFAULT '',
+  revision INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   admitted_at TEXT,
   released_at TEXT,
@@ -100,6 +101,8 @@ CREATE TABLE IF NOT EXISTS audit_events (
 """
 
 RELEASE_STATUSES = ("待入闸", "已入闸", "晋升中", "已放行", "回滚中", "已回滚", "已关闭")
+# 在途口径：总览在途、对账在途、同应用并行互斥共用这一份集合。
+RELEASE_ACTIVE_STATUSES = ("已入闸", "晋升中", "已放行", "回滚中")
 PIPELINE_STATUSES = ("未回执", "绿", "红")
 HEALTH_STATUSES = ("探针绿", "探针红")
 WINDOW_STATUSES = ("窗开", "窗关")
@@ -107,9 +110,16 @@ WINDOW_STATUSES = ("窗开", "窗关")
 
 def connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    # timeout + busy_timeout：并发补摘要 / 入闸时写锁排队而不是立刻 database is locked。
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.DatabaseError:
+        # 某些只读/内存环境不支持 WAL，回退默认回滚日志即可。
+        pass
     return conn
 
 
@@ -129,6 +139,14 @@ def db():
 def init_db() -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """对旧快照库做幂等轻量迁移（CREATE TABLE IF NOT EXISTS 不会补列）。"""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(releases)").fetchall()}
+    if "revision" not in cols:
+        conn.execute("ALTER TABLE releases ADD COLUMN revision INTEGER NOT NULL DEFAULT 1")
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict | None:

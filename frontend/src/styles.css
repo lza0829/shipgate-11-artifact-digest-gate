@@ -245,3 +245,91 @@ tr:hover td { background: #f2f4f7; }
   }
   .nav { flex-direction: row; flex-wrap: wrap; }
 }
+
+/* ===== 制品摘要闸：标签 / 回执 / 摘要格 / 审计 ===== */
+.tag {
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.tag-ok { color: #1d6b52; background: #e2f3ec; border-color: #9fd6c3; }
+.tag-warn { color: #8a5a00; background: #fdf0d2; border-color: #e6c36a; }
+.tag-bad { color: #8f2418; background: #fbe1dc; border-color: #e2a093; }
+
+.stat-warn { border-bottom-color: #d39a1f; }
+.stat-warn .n { color: #b07d12; }
+.stat-bad { border-bottom-color: var(--danger); }
+.stat-bad .n { color: var(--danger); }
+
+.warn-line {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.7rem;
+  background: #fdf0d2;
+  border-left: 4px solid #d39a1f;
+  color: #6e4a00;
+  font-size: 0.9rem;
+}
+.ok-line { color: var(--ok); font-weight: 700; }
+.hint-line { color: var(--muted); font-size: 0.82rem; line-height: 1.6; margin: 0.5rem 0; }
+.empty-line { text-align: center; color: var(--muted); padding: 1.1rem 0; }
+
+.receipt {
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  background: #fff;
+  padding: 0.7rem 0.9rem;
+  margin: 0.6rem 0 0.9rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+.receipt.ok { border-left-color: var(--ok); background: #f1faf6; }
+.receipt.bad { border-left-color: var(--danger); background: #fdf1ef; }
+.receipt.pending { border-left-color: var(--steel); background: #f2f4f7; }
+.receipt-title { font-weight: 700; display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.2rem; }
+.receipt-digest { color: var(--muted); font-size: 0.82rem; word-break: break-all; }
+
+.col-digest { min-width: 250px; }
+.digest-cell code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  background: #eef1f5;
+  border: 1px solid var(--line);
+  padding: 0.05rem 0.3rem;
+  word-break: break-all;
+}
+.digest-line { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.digest-empty-text { color: var(--muted); font-style: italic; font-size: 0.84rem; }
+.cell-warn { color: #9a6a00; font-size: 0.78rem; margin-top: 0.25rem; line-height: 1.45; }
+.cell-msg { color: var(--ok); font-size: 0.78rem; margin-top: 0.25rem; }
+.digest-edit { display: flex; gap: 0.35rem; margin-top: 0.4rem; }
+.digest-edit input { min-width: 190px; flex: 1 1 200px; padding: 0.32rem 0.45rem; font-size: 0.82rem; }
+.digest-edit button { padding: 0.32rem 0.7rem; font-size: 0.82rem; white-space: nowrap; }
+
+.status-pill { font-weight: 700; font-size: 0.82rem; }
+.status-已入闸 { color: #1d6b52; }
+.status-待入闸 { color: #8a5a00; }
+.status-晋升中 { color: #1f5fa8; }
+.status-已放行 { color: #1d6b52; }
+.status-回滚中, .status-已回滚 { color: #8f2418; }
+
+.pipe-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--steel); }
+.pipe-dot.pipe-绿 { background: #2aa876; }
+.pipe-dot.pipe-红 { background: #d83a2a; }
+
+.ops-cell { white-space: nowrap; }
+.btn-group { display: inline-flex; gap: 0.25rem; margin-right: 0.5rem; }
+.btn-group button { padding: 0.3rem 0.55rem; font-size: 0.78rem; }
+.admit-btn { padding: 0.34rem 0.8rem; }
+
+.audit-search input { min-width: 320px; }
+.audit-deny td { background: #fdf6f4; }
+.audit-note { font-size: 0.82rem; word-break: break-all; max-width: 520px; }
+
+@media (max-width: 860px) {
+  .audit-search input { min-width: 180px; }
+  .digest-edit { flex-direction: column; align-items: stretch; }
+}

@@ -1,25 +1,39 @@
 from __future__ import annotations
 from fastapi import APIRouter
-from app.db import db, rows_to_list, row_to_dict
-from app.services.common import RELEASE_SELECT
+
+from app.db import db, rows_to_list, RELEASE_ACTIVE_STATUSES
+from app.services.common import RELEASE_SELECT, present_releases
 
 router = APIRouter(tags=["总览"])
 
 
 @router.get("/总览")
 def overview():
+    active_marks = ",".join("?" for _ in RELEASE_ACTIVE_STATUSES)
     with db() as conn:
         counts = {}
         for name in ("待入闸", "已入闸", "晋升中", "已放行", "回滚中", "已回滚", "已关闭"):
             counts[name] = conn.execute(
                 "SELECT COUNT(*) AS c FROM releases WHERE status=?", (name,)
             ).fetchone()["c"]
-        active = rows_to_list(
-            conn.execute(
-                RELEASE_SELECT
-                + " WHERE r.status IN ('已入闸','晋升中','已放行','回滚中') ORDER BY r.id DESC"
-            ).fetchall()
-        )
+        active_rows = conn.execute(
+            RELEASE_SELECT
+            + f" WHERE r.status IN ({active_marks}) ORDER BY r.id DESC",
+            RELEASE_ACTIVE_STATUSES,
+        ).fetchall()
+        active = present_releases(active_rows)
+
+        # 待入闸但摘要空/非法：硬拒臂下它们绝不可能进入「在途」，
+        # 总览单独露出缺摘要格，读侧与写侧同一判定。
+        pending_rows = conn.execute(
+            RELEASE_SELECT + " WHERE r.status='待入闸' ORDER BY r.id DESC"
+        ).fetchall()
+        pending = present_releases(pending_rows)
+        digest_missing_pending = [r for r in pending if not r["摘要齐全"]]
+
+        # 防御性指标：正常硬拒臂下恒为 0；若非 0 说明出现了历史脏在途单。
+        active_digest_missing = [r for r in active if not r["摘要齐全"]]
+
         versions = rows_to_list(
             conn.execute(
                 """
@@ -44,4 +58,14 @@ def overview():
                 """
             ).fetchall()
         )
-        return {"分布": counts, "在途": active, "环境版本": versions, "实例": health}
+        return {
+            "分布": counts,
+            "在途": active,
+            "环境版本": versions,
+            "实例": health,
+            # 摘要闸读侧暴露
+            "摘要待补": digest_missing_pending,
+            "缺摘要待入闸数": len(digest_missing_pending),
+            "在途缺摘要数": len(active_digest_missing),
+            "摘要闸臂": "硬拒",
+        }

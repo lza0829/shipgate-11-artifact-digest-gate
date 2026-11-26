@@ -5,13 +5,21 @@ from app.db import db, row_to_dict
 from app.services.common import (
     active_release_window,
     audit,
+    audit_standalone,
     env_by_code,
     get_release,
     get_setting,
     now_str,
     ordered_envs,
+    present_release,
     set_app_env_version,
     upsert_instance,
+)
+from app.services.digest_gate import (
+    ARTIFACT_INCOMPLETE,
+    GateError,
+    classify_digest,
+    digest_complete,
 )
 
 router = APIRouter(tags=["晋升"])
@@ -30,6 +38,22 @@ def promote(release_id: int, body: PromoteIn):
             raise HTTPException(404, "发版单不存在")
         if r["status"] not in ("已入闸", "晋升中"):
             raise HTTPException(400, "当前状态不可晋升")
+        # 制品齐全防御闸：硬拒臂下正常入闸单必有合法摘要；
+        # 历史脏数据若摘要空/非法，晋升不得把它当制品齐全放行。
+        if not digest_complete(r["artifact_digest"]):
+            state = classify_digest(r["artifact_digest"])
+            audit_standalone(
+                "晋升",
+                release_id,
+                "晋升拒绝",
+                f"[{ARTIFACT_INCOMPLETE}] 制品摘要状态={state}，制品不齐全，禁止晋升",
+            )
+            raise GateError(
+                ARTIFACT_INCOMPLETE,
+                f"制品摘要{state}，制品不齐全，禁止晋升（缺摘要单不得进入晋升/对账齐全口径）",
+                400,
+                {"摘要状态": state},
+            )
         to_env = env_by_code(conn, body.目标环境)
         envs = ordered_envs(conn)
         codes = [e["code"] for e in envs]
@@ -76,4 +100,4 @@ def promote(release_id: int, body: PromoteIn):
         set_app_env_version(conn, r["app_id"], to_env["id"], r["target_version"])
         upsert_instance(conn, r["app_id"], to_env["id"], r["target_version"], "探针绿", release_id)
         audit(conn, "晋升", release_id, f"晋升到{body.目标环境}", body.备注)
-        return row_to_dict(get_release(conn, release_id))
+        return present_release(get_release(conn, release_id))

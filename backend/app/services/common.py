@@ -2,6 +2,9 @@ from __future__ import annotations
 from datetime import datetime
 from fastapi import HTTPException
 
+from app.db import db
+from app.services.digest_gate import decorate_release
+
 
 def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -12,6 +15,19 @@ def audit(conn, kind: str, ref_id: int | None, action: str, note: str = "") -> N
         "INSERT INTO audit_events(kind, ref_id, action, created_at, note) VALUES (?, ?, ?, ?, ?)",
         (kind, ref_id, action, now_str(), note),
     )
+
+
+def audit_standalone(kind: str, ref_id: int | None, action: str, note: str = "") -> None:
+    """在主业务事务回滚之后，用独立连接留一条可核审计（如入闸拒绝）。
+
+    审计是只追加的合规流水：业务写入可以整体回滚，拒绝事件本身必须留下。
+    审计落库失败不得掩盖原始业务错误。
+    """
+    try:
+        with db() as conn:
+            audit(conn, kind, ref_id, action, note)
+    except Exception:
+        pass
 
 
 def get_setting(conn, key: str, default: str = "") -> str:
@@ -51,6 +67,7 @@ SELECT r.id AS 编号,
        e.name AS 当前环境名,
        r.canary_ratio AS 金丝雀比例,
        r.note AS 备注,
+       r.revision AS 数据版本,
        r.created_at AS 申请时间,
        r.admitted_at AS 入闸时间,
        r.released_at AS 放行时间,
@@ -66,6 +83,17 @@ def get_release(conn, release_id: int):
     if not row:
         raise HTTPException(404, "发版单不存在")
     return row
+
+
+def present_release(row) -> dict:
+    """发版单统一输出：字典化 + 摘要/制品齐全读侧判定。"""
+    if row is None:
+        return None
+    return decorate_release(dict(row))
+
+
+def present_releases(rows) -> list[dict]:
+    return [decorate_release(dict(r)) for r in rows]
 
 
 def env_by_code(conn, code: str):
